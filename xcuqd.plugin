@@ -1,17 +1,18 @@
 #!name=商场云选合集
-#!desc=【合集版】整合猫酷多商场与昌宜云选自动签到。点击“配置参数”统一设置每日执行时间。
+#!desc=【合集版】整合猫酷多商场与昌宜云选。点击“配置参数”可设置时间。
 #!author=cmkachun
 #!homepage=https://github.com/cmkachun/xcuqd
 #!icon=https://raw.githubusercontent.com/luestr/IconSet/master/AppIcon/Mallcoo.png
 
-# 使用 24 小时制 HH:mm 格式，Loon 会自动解析
-#!arguments={ "cron_time": {"title": "签到执行时间", "defaultValue": "00:05", "type": "string", "desc": "请设置 24 小时制时间，例如 08:30"} }
+# 使用 Loon 专用参数模块，确保界面和脚本同时显示
+[Argument]
+cron_time = input, "00:05", tag = 签到执行时间, desc = 请输入 24 小时制时间 (例如 08:30)
 
 [Script]
-# 统一签到任务
-cron "{cron_time}" script-path=https://raw.githubusercontent.com/cmkachun/xcuqd/main/xcuqd_sign.js, tag=商场云选合集签到
+# 统一签到任务 (Loon 会自动将 HH:mm 转换为定时任务)
+cron {cron_time} script-path=https://raw.githubusercontent.com/cmkachun/xcuqd/main/xcuqd_sign.js, tag=商场云选合集签到
 
-# 统一抓包规则 (共用抓包脚本)
+# 统一抓包规则
 http-request ^https:\/\/m\.mallcoo\.cn\/api\/user\/User\/CheckinV2 script-path=https://raw.githubusercontent.com/cmkachun/xcuqd/main/xcuqd_get_cookie.js, requires-body=true, tag=猫酷抓包
 http-request ^https:\/\/api\.crm\.chamshare\.cn\/daySign script-path=https://raw.githubusercontent.com/cmkachun/xcuqd/main/xcuqd_get_cookie.js, tag=昌宜抓包
 
