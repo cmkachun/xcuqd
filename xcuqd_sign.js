@@ -1,5 +1,5 @@
 /**
- * @fileoverview 商场云选合集签到 (昌宜深度修复版)
+ * @fileoverview 商场云选合集签到 (昌宜兼容性终极修复)
  */
 
 const mallData = $persistentStore.read("mallcoo_multi_data");
@@ -9,98 +9,94 @@ let summary = "";
 let completedTasks = 0;
 const totalTasks = 2; 
 
-// --- 1. 昌宜云选任务 (深度修复) ---
+// --- 1. 昌宜云选任务 (模拟小程序环境) ---
 function runChamshare() {
     if (!chamToken) {
-        summary += "【昌宜云选】⚠️ 未获取到 Token，请先抓包\n";
+        summary += "【昌宜云选】⚠️ 未获取到 Token\n";
         checkDone();
         return;
     }
     
-    // 补齐所有小程序环境必须的 Header
     const request = {
         url: `https://api.crm.chamshare.cn/daySign`,
         method: `POST`,
         headers: {
+            'Host': 'api.crm.chamshare.cn',
+            'Accept': '*/*',
             'X-App-Token': chamToken,
             'X-App-Platform': 'wxapp',
-            'X-App-Version': '1.0.0', // 增加版本号
             'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.42(0x18002a2d) NetType/WIFI Language/zh_CN',
-            'Referer': 'https://servicewechat.com/wx2c69d95f50f2249e/1/page-frame.html', // 增加引用页
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Referer': 'https://servicewechat.com/wx2c69d95f50f2249e/1/page-frame.html',
+            'Accept-Language': 'zh-CN,zh-Hans;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br'
         },
-        body: '{}' // 明确设置为字符串格式的空对象
+        body: JSON.stringify({}) // 确保 Body 序列化
     };
 
     $httpClient.post(request, (err, resp, data) => {
         if (err) {
-            summary += `【昌宜云选】❌ 网络请求失败\n`;
+            summary += `【昌宜云选】❌ 网络连接失败\n`;
         } else {
+            // 如果返回 403/400 也会触发这里
             try {
                 const res = JSON.parse(data);
-                // 昌宜常见的状态码判断
                 if (res.code === 0 || res.code === 200) {
                     summary += `【昌宜云选】✅ 成功: 获得 ${res.data.integral || 0} 积分\n`;
                 } else if (res.code === 1101 || (res.msg && res.msg.includes("已签到"))) {
                     summary += `【昌宜云选】ℹ️ 今日已签过\n`;
-                } else if (res.code === 401) {
-                    summary += `【昌宜云选】❌ Token失效，请重新抓包\n`;
                 } else {
-                    summary += `【昌宜云选】❌ 错误: ${res.msg || "未知原因"}\n`;
+                    summary += `【昌宜云选】❌ 失败: ${res.msg || "状态码 " + res.code}\n`;
                 }
-            } catch (e) { 
-                summary += `【昌宜云选】❌ 解析失败，服务器返回: ${data ? data.slice(0, 30) : "空"}\n`; 
+            } catch (e) {
+                // 如果解析失败，打印原始返回的前 50 个字符，方便我们调试
+                const sliceData = data ? data.replace(/\s+/g, '').slice(0, 50) : "无数据";
+                summary += `【昌宜云选】❌ 接口异常: ${sliceData}\n`;
             }
         }
         checkDone();
     });
 }
 
-// --- 2. 猫酷任务 (保持不变) ---
+// --- 2. 猫酷任务 (保持原样) ---
 function runMallcoo() {
     if (!mallData) {
         summary += "【猫酷商场】⚠️ 未抓取到数据\n";
         checkDone();
         return;
     }
-    try {
-        const accounts = JSON.parse(mallData);
-        const ids = Object.keys(accounts);
-        if (ids.length === 0) { summary += "【猫酷商场】⚠️ 账号为空\n"; checkDone(); return; }
-        
-        let mcDone = 0;
-        for (const id of ids) {
-            const req = {
-                url: `https://m.mallcoo.cn/api/user/User/CheckinV2`,
-                method: `POST`,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ "MallID": Number(id), "Header": { "Token": accounts[id] } })
-            };
-            $httpClient.post(req, (err, resp, data) => {
-                mcDone++;
-                try {
-                    const res = JSON.parse(data);
-                    if (res.s === 1 || res.v === true) summary += `【猫酷商场】✅ ID[${id}]: 成功\n`;
-                    else if (res.m === 2054) summary += `【猫酷商场】ℹ️ ID[${id}]: 已签过\n`;
-                    else summary += `【猫酷商场】⚠️ ID[${id}]: 失败\n`;
-                } catch (e) { summary += `【猫酷商场】❌ 解析失败\n`; }
-                if (mcDone === ids.length) checkDone();
-            });
-        }
-    } catch (e) {
-        summary += "【猫酷商场】❌ 数据格式错误\n";
-        checkDone();
+    const accounts = JSON.parse(mallData);
+    const ids = Object.keys(accounts);
+    let mcDone = 0;
+    if (ids.length === 0) { checkDone(); return; }
+    
+    for (const id of ids) {
+        const req = {
+            url: `https://m.mallcoo.cn/api/user/User/CheckinV2`,
+            method: `POST`,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ "MallID": Number(id), "Header": { "Token": accounts[id] } })
+        };
+        $httpClient.post(req, (err, resp, data) => {
+            mcDone++;
+            try {
+                const res = JSON.parse(data);
+                if (res.s === 1 || res.v === true) summary += `【猫酷商场】✅ ID[${id}]: 成功\n`;
+                else if (res.m === 2054) summary += `【猫酷商场】ℹ️ ID[${id}]: 已签过\n`;
+                else summary += `【猫酷商场】⚠️ ID[${id}]: 失败\n`;
+            } catch (e) { summary += `【猫酷商场】❌ 解析失败\n`; }
+            if (mcDone === ids.length) checkDone();
+        });
     }
 }
 
 function checkDone() {
     completedTasks++;
     if (completedTasks === totalTasks) {
-        $notification.post("商场云选签到报告", "", summary);
+        $notification.post("商场合集签到报告", "", summary);
         $done();
     }
 }
 
-// 执行
 runChamshare();
 runMallcoo();
