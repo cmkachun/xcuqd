@@ -1,13 +1,14 @@
 const mallData = $persistentStore.read("mallcoo_multi_data");
 const chamToken = $persistentStore.read("chamshare_token");
 const chamMarketId = $persistentStore.read("chamshare_marketid") || "1";
+const chamVersion = $persistentStore.read("chamshare_version") || "2.1.1";
 
 let summary = "";
 let completedTasks = 0;
 
 function runChamshare() {
     if (!chamToken) {
-        summary += "【昌宜云选】⚠️ 未获取到 Token\n";
+        summary += "【昌宜云选】⚠️ 未获取到 Token，请重新抓包\n";
         checkDone();
         return;
     }
@@ -17,7 +18,7 @@ function runChamshare() {
         headers: {
             'X-App-Token': chamToken,
             'X-App-MarketId': chamMarketId,
-            'X-App-Version': '2.1.1',
+            'X-App-Version': chamVersion,
             'X-App-Platform': 'wxapp',
             'Content-Type': 'application/json',
             'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.67(0x1800432e) NetType/WIFI Language/zh_CN',
@@ -30,8 +31,10 @@ function runChamshare() {
             const res = JSON.parse(data);
             if (res.code === 0 || res.code === 200) summary += "【昌宜云选】✅ 签到成功\n";
             else if (res.code === 1101 || res.msg?.includes("已签到")) summary += "【昌宜云选】ℹ️ 今日已签\n";
-            else summary += `【昌宜云选】❌ ${res.msg || "请求失败"}\n`;
-        } catch (e) { summary += "【昌宜云选】❌ 响应异常\n"; }
+            else summary += `【昌宜云选】❌ ${res.msg || "请求错误"}\n`;
+        } catch (e) { 
+            summary += `【昌宜云选】❌ 响应异常 (状态码: ${resp ? resp.status : '未知'})\n`;
+        }
         checkDone();
     });
 }
@@ -41,7 +44,6 @@ function runMallcoo() {
     const accounts = JSON.parse(mallData);
     const ids = Object.keys(accounts);
     let mcDone = 0;
-    if (ids.length === 0) { checkDone(); return; }
     for (const id of ids) {
         $httpClient.post({
             url: `https://m.mallcoo.cn/api/user/User/CheckinV2`,
