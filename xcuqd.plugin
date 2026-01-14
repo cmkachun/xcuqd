@@ -1,7 +1,7 @@
 #!name=商场云选合集
 #!desc=整合猫酷(金桥、汇智)与昌宜云选(长泰)。
 #!author=cmkachun
-#!icon=https://raw.githubusercontent.com/luestr/IconSet/master/AppIcon/Mallcoo.png
+#!icon=https://raw.githubusercontent.com/Semporia/Hand-Painted-icon/master/Social_Media/Skyrock.png
 
 [Script]
 # 定时签到：默认每天 00:05 执行
