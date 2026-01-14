@@ -1,15 +1,18 @@
 #!name=商场云选合集
-#!desc=整合猫酷与昌宜云选自动签到。
+#!desc=整合猫酷(金桥、汇智)与昌宜云选(长泰)。请进入小程序签到页面触发抓包。
 #!author=cmkachun
 #!icon=https://raw.githubusercontent.com/luestr/IconSet/master/AppIcon/Mallcoo.png
 
-[Script]
-# 1. 签到任务 (手动点击 Loon 底部“脚本”栏即可运行)
-cron "5 0 * * *" script-path=https://raw.githubusercontent.com/cmkachun/xcuqd/main/xcuqd_sign.js, tag=商场合集签到
+# 配置每日执行时间，例如 08:30
+#!arguments={ "cron_time": {"title": "签到执行时间", "defaultValue": "00:05", "type": "string", "desc": "请设置 24 小时制时间，格式为 HH:mm"} }
 
-# 2. 抓包规则
+[Script]
+# 定时签到任务
+cron "{cron_time}" script-path=https://raw.githubusercontent.com/cmkachun/xcuqd/main/xcuqd_sign.js, tag=商场合集签到
+
+# 抓包规则：猫酷匹配签到动作，昌宜匹配进入签到详情页
 http-request ^https:\/\/m\.mallcoo\.cn\/api\/user\/User\/CheckinV2 script-path=https://raw.githubusercontent.com/cmkachun/xcuqd/main/xcuqd_get_cookie.js, requires-body=true, tag=猫酷抓包
-http-request ^https:\/\/api\.crm\.chamshare\.cn\/ script-path=https://raw.githubusercontent.com/cmkachun/xcuqd/main/xcuqd_get_cookie.js, tag=昌宜抓包
+http-request ^https:\/\/api\.crm\.chamshare\.cn\/daySign\/detail script-path=https://raw.githubusercontent.com/cmkachun/xcuqd/main/xcuqd_get_cookie.js, tag=昌宜详情页抓包
 
 [MITM]
 hostname = m.mallcoo.cn, api.crm.chamshare.cn
