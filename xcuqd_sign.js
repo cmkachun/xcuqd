@@ -1,5 +1,5 @@
 /**
- * @name 商场云选合集 (长泰兼容增强版)
+ * @name 商场云选合集 (稳定运行版)
  * @author cmkachun
  */
 
@@ -21,6 +21,7 @@ function main() {
     console.log(`昌宜Token: ${chamToken ? "✅" : "❌"}`);
     console.log(`猫酷Data: ${mallData ? "✅" : "❌"}`);
     
+    // 按顺序执行：昌宜 -> 猫酷 -> 汇总
     runChamshare(() => {
         runMallcoo(() => {
             finalize();
@@ -28,14 +29,13 @@ function main() {
     });
 }
 
-// --- 昌宜云选 (长泰国际) 兼容性重构 ---
+// --- 昌宜云选 (长泰国际) ---
 function runChamshare(callback) {
     if (!chamToken) {
         callback();
         return;
     }
     const name = nameMap[chamMarketId] || `昌宜ID[${chamMarketId}]`;
-    
     const request = {
         url: `https://api.crm.chamshare.cn/daySign`,
         method: `POST`,
@@ -48,34 +48,27 @@ function runChamshare(callback) {
             'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.54(0x1800362b) NetType/WIFI Language/zh_CN',
             'Referer': 'https://servicewechat.com/wx2ab4eda1b91e0933/59/page-frame.html'
         },
-        // 尝试发送一个空的 JSON 字符串，部分服务器对完全空的 body 会报错误请求
         body: "{}" 
     };
     
     $httpClient.post(request, (err, resp, data) => {
         try {
             if (err) {
-                console.log(`【长泰】网络错误: ${err}`);
                 summary += `【${name}】❌ 网络错误\n`;
             } else {
                 console.log(`【长泰】原始响应: ${data}`);
                 const res = JSON.parse(data);
-                
-                // 昌宜系统逻辑：0/200 成功，1101 已签到，401/403/40001 Token失效
+                // 关键点：code 1101 是已经签到的标志
                 if (res.code === 0 || res.code === 200) {
                     summary += `【${name}】✅ 签到成功\n`;
-                } else if (res.code === 1101 || (res.msg && (res.msg.includes("已签到") || res.msg.includes("重复")))) {
+                } else if (res.code === 1101 || data.includes("已签到")) {
                     summary += `【${name}】ℹ️ 今日已完成\n`;
-                } else if (res.code === 401 || res.code === 403 || res.code === 40001) {
-                    summary += `【${name}】⚠️ Token 已失效，请重抓\n`;
                 } else {
                     summary += `【${name}】❌ ${res.msg || "请求错误"}\n`;
                 }
             }
         } catch (e) {
-            // 如果解析 JSON 失败，通常是返回了 HTML 报错页
-            console.log(`【长泰】解析失败: ${data}`);
-            summary += `【${name}】❌ 格式错误\n`;
+            summary += `【${name}】❌ 格式异常\n`;
         }
         callback();
     });
@@ -114,7 +107,11 @@ function runMallcoo(callback) {
 }
 
 function finalize() {
-    if (summary) $notification.post("商场合集签到报告", "", summary.trim());
+    console.log("--- 3. 任务结束，汇总通知 ---");
+    if (summary) {
+        // 去掉末尾换行
+        $notification.post("商场合集签到报告", "", summary.trim());
+    }
     $done();
 }
 
