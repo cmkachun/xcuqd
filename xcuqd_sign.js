@@ -1,5 +1,5 @@
 /**
- * @name 商场云选合集 (稳定优化版)
+ * @name 商场云选合集 (稳定修复版)
  * @author cmkachun
  */
 
@@ -11,104 +11,109 @@ const nameMap = {
 
 let summary = "";
 
-async function start() {
-    console.log("--- 1. 开始读取持久化数据 ---");
-    
-    const mallData = $persistentStore.read("mallcoo_multi_data");
-    const chamToken = $persistentStore.read("chamshare_token");
-    const chamMarketId = $persistentStore.read("chamshare_marketid") || "1";
-    
-    console.log(`昌宜Token状态: ${chamToken ? "✅ 已获取" : "❌ 未获取"}`);
-    console.log(`猫酷Data状态: ${mallData ? "✅ 已获取" : "❌ 未获取"}`);
+// 1. 获取数据
+const mallData = $persistentStore.read("mallcoo_multi_data");
+const chamToken = $persistentStore.read("chamshare_token");
+const chamMarketId = $persistentStore.read("chamshare_marketid") || "1";
 
+console.log("--- 1. 数据状态检查 ---");
+console.log(`昌宜Token: ${chamToken ? "已获取" : "未获取"}`);
+console.log(`猫酷Data: ${mallData ? "已获取" : "未获取"}`);
+
+// 2. 任务调度逻辑
+function main() {
+    console.log("--- 2. 开始任务流 ---");
+    
     // 执行昌宜
-    if (chamToken) {
-        console.log("--- 2. 执行昌宜签到 ---");
-        await runChamshare(chamToken, chamMarketId);
-    } else {
-        summary += "【昌宜云选】⚠️ 未获取到 Token\n";
-    }
-
-    // 执行猫酷
-    if (mallData) {
-        console.log("--- 3. 执行猫酷签到 ---");
-        await runMallcoo(mallData);
-    } else {
-        summary += "【猫酷商场】⚠️ 无账号数据\n";
-    }
-
-    // 汇总通知
-    if (summary) {
-        console.log("--- 4. 发送通知报告 ---");
-        $notification.post("商场合集签到报告", "", summary.trim());
-    } else {
-        console.log("--- 4. 无数据可通知 ---");
-    }
-
-    console.log("--- 任务结束 ---");
-    $done();
-}
-
-function runChamshare(token, marketId) {
-    return new Promise((resolve) => {
-        const name = nameMap[marketId] || `昌宜ID[${marketId}]`;
-        const request = {
-            url: `https://api.crm.chamshare.cn/daySign`,
-            method: `POST`,
-            headers: {
-                'X-App-Token': token,
-                'X-App-MarketId': marketId,
-                'X-App-Platform': 'wxapp',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({})
-        };
-        $httpClient.post(request, (err, resp, data) => {
-            if (err) {
-                summary += `【${name}】❌ 网络错误\n`;
-            } else {
-                try {
-                    const res = JSON.parse(data);
-                    if (res.code === 0 || res.code === 200) summary += `【${name}】✅ 签到成功\n`;
-                    else if (res.code === 1101 || data.includes("已签到")) summary += `【${name}】ℹ️ 今日已完成\n`;
-                    else summary += `【${name}】❌ ${res.msg || "错误"}\n`;
-                } catch (e) { summary += `【${name}】❌ 响应异常\n`; }
-            }
-            resolve();
+    runChamshare(() => {
+        // 昌宜结束后执行猫酷
+        runMallcoo(() => {
+            // 全部结束后发送通知并 done
+            finalize();
         });
     });
 }
 
-function runMallcoo(mallData) {
-    return new Promise((resolve) => {
-        const accounts = JSON.parse(mallData);
-        const ids = Object.keys(accounts);
-        let mcProcessed = 0;
-        
-        if (ids.length === 0) { resolve(); return; }
-
-        for (const id of ids) {
-            const name = nameMap[id] || `猫酷ID[${id}]`;
-            $httpClient.post({
-                url: `https://m.mallcoo.cn/api/user/User/CheckinV2`,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ "MallID": Number(id), "Header": { "Token": accounts[id] } })
-            }, (err, resp, data) => {
-                mcProcessed++;
-                if (err) {
-                    summary += `【${name}】❌ 请求超时\n`;
-                } else {
-                    try {
-                        const res = JSON.parse(data);
-                        if (res.s === 1) summary += `【${name}】✅ 签到成功\n`;
-                        else if (res.m === 2054 || data.includes("已签到")) summary += `【${name}】ℹ️ 今日已完成\n`;
-                        else summary += `【${name}】❌ 失败(${res.m})\n`;
-                    } catch (e) { summary += `【${name}】❌ 解析异常\n`; }
-                }
-                if (mcProcessed === ids.length) resolve();
-            });
+// --- 昌宜云选 (长泰国际) ---
+function runChamshare(callback) {
+    if (!chamToken) {
+        console.log("跳过昌宜: 无Token");
+        callback();
+        return;
+    }
+    const name = nameMap[chamMarketId] || `昌宜ID[${chamMarketId}]`;
+    const request = {
+        url: `https://api.crm.chamshare.cn/daySign`,
+        method: `POST`,
+        headers: {
+            'X-App-Token': chamToken,
+            'X-App-MarketId': chamMarketId,
+            'X-App-Platform': 'wxapp',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({})
+    };
+    $httpClient.post(request, (err, resp, data) => {
+        try {
+            if (err) {
+                summary += `【${name}】❌ 网络错误\n`;
+            } else {
+                const res = JSON.parse(data);
+                if (res.code === 0 || res.code === 200) summary += `【${name}】✅ 签到成功\n`;
+                else if (res.code === 1101 || data.includes("已签到")) summary += `【${name}】ℹ️ 今日已完成\n`;
+                else summary += `【${name}】❌ ${res.msg || "错误"}\n`;
+            }
+        } catch (e) {
+            summary += `【${name}】❌ 响应异常\n`;
         }
+        callback();
     });
 }
 
-start();
+// --- 猫酷商场 (金桥、汇智) ---
+function runMallcoo(callback) {
+    if (!mallData) {
+        console.log("跳过猫酷: 无数据");
+        callback();
+        return;
+    }
+    const accounts = JSON.parse(mallData);
+    const ids = Object.keys(accounts);
+    if (ids.length === 0) { callback(); return; }
+
+    let mcProcessed = 0;
+    ids.forEach(id => {
+        const name = nameMap[id] || `猫酷ID[${id}]`;
+        $httpClient.post({
+            url: `https://m.mallcoo.cn/api/user/User/CheckinV2`,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ "MallID": Number(id), "Header": { "Token": accounts[id] } })
+        }, (err, resp, data) => {
+            mcProcessed++;
+            try {
+                if (err) {
+                    summary += `【${name}】❌ 网络超时\n`;
+                } else {
+                    const res = JSON.parse(data);
+                    if (res.s === 1) summary += `【${name}】✅ 签到成功\n`;
+                    else if (res.m === 2054 || data.includes("已签到")) summary += `【${name}】ℹ️ 今日已完成\n`;
+                    else summary += `【${name}】❌ 失败(${res.m})\n`;
+                }
+            } catch (e) {
+                summary += `【${name}】❌ 解析异常\n`;
+            }
+            if (mcProcessed === ids.length) callback();
+        });
+    });
+}
+
+function finalize() {
+    console.log("--- 3. 任务结束，汇总通知 ---");
+    if (summary) {
+        $notification.post("商场合集签到报告", "", summary.trim());
+    }
+    $done();
+}
+
+// 启动
+main();
